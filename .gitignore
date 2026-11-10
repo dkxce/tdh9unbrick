@@ -1,0 +1,7 @@
+/.gigatool
+/.venv
+/__pycache__
+/build
+/ui_app/__pycache__
+/.chat.txt
+/MOVED TO.txt
