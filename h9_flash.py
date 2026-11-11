@@ -253,6 +253,8 @@ class H9HidRadio:
     def _send(dev, data):
         """Send one HID report (report ID first). / Отправляет HID-отчёт."""
         # hidapi expects the report ID as the first byte / report ID первым байтом
+        if dev is None:
+            raise RuntimeError("HID device is not open (dev=None) / Устройство не открыто (dev=None)")
         buf = bytes([REPORT_ID]) + data
         n = dev.write(buf)
         if n != len(buf):
@@ -341,19 +343,43 @@ def expected_crcs(image):
     return out
 
 
-def scan_radio(dev):
-    """Read the CRC of every accessible sector (no writes). / Читает CRC всех секторов (без записи)."""
+def scan_radio(dev, on_progress=None):
+    """Read the CRC of every accessible sector (no writes). / Читает CRC всех секторов (без записи).
+
+    `on_progress` is an optional callable(done, total) so GUI callers can update
+    their own progress; when it is None, a small console progress line is shown
+    (safely, ignoring a missing stdout in windowed builds).
+    `on_progress` — опциональный callable(done, total) для обновления прогресса
+    в GUI; если None, показывается строка прогресса в консоли (безопасно,
+    игнорируя отсутствие stdout в windowed-сборках)."""
     result = []
     total = (FLASH_SIZE - APP_START) // SECTOR_SIZE
     # Read 16 sectors per command / По 16 секторов за одну команду
     for relative in range(0, FLASH_SIZE - APP_START, SECTOR_SIZE * 16):
         count = min(16, (FLASH_SIZE - APP_START - relative) // SECTOR_SIZE)
         result += dev.crcs(relative, count)
-        # Progress line / строка прогресса
-        sys.stdout.write("\r  Scanning sector CRCs: %d/%d" % (len(result), total))
-        sys.stdout.flush()
-    sys.stdout.write("\n")
+        # Progress line / строка прогресса (safe for console=False exe)
+        if on_progress is not None:
+            on_progress(len(result), total)
+        else:
+            _console_progress(len(result), total)
+    _console_progress(total, total)
     return result
+
+
+def _console_progress(done, total):
+    """Write a console progress line, ignoring a missing stdout (windowed exe).
+
+    Пишет строку прогресса в консоль, игнорируя отсутствие stdout
+    (windowed exe)."""
+    out = sys.stdout
+    if out is None:
+        return
+    try:
+        out.write("\r  Scanning sector CRCs: %d/%d" % (done, total))
+        out.flush()
+    except Exception:
+        pass
 
 
 # Number of app sectors (firmware region) and the CRC of an erased sector.

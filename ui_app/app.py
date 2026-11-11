@@ -103,7 +103,9 @@ class FlashWorker(QThread):
         try:
             code, msg = self.flash_work()
         except Exception as e:
-            code, msg = 2, "Unexpected error / Непредвиденная ошибка: %s" % e
+            import traceback
+            tb = traceback.format_exc()
+            code, msg = 2, "Unexpected error / Непредвиденная ошибка:\n%s\n%s" % (tb, e)
         self.signals.finished.emit(code, msg)
 
     def flash_work(self):
@@ -197,7 +199,7 @@ class FlashWorker(QThread):
 
             # 8) Final verification / Финальная проверка
             log("Final verification of all sectors... / Финальная проверка всех секторов...")
-            after = scan_radio(radio)
+            after = scan_radio(radio, on_progress=lambda d, t: self.signals.progress.emit(d, t))
             bad = 0
             for i in range(total_sectors):
                 if after[i] != tgt_crcs[i]:
